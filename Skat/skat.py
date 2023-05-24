@@ -1,4 +1,7 @@
-import sys
-sys.path.append('..')
+from Utilities.deck import Deck
 
-from Deck.deck import Deck
+class Skat:
+
+    def __init__(self, players: list):
+        print("skat started")
+        self.players = players

@@ -5,12 +5,11 @@ import json
 from mau_mau_client import start_mau_mau
 
 
-HOST = '127.0.0.1'
-PORT = 5050
+SERVER, PORT = '192.168.0.61', 0
+
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.connect((HOST, PORT))
-print(type(server))
+server.connect((SERVER, PORT))
 
 
 def least_edit_distance(word: str):

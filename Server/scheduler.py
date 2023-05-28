@@ -7,8 +7,10 @@ import socket
 import threading
 import json
 
+IP, PORT = "192.168.0.61", 0
+
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind(('127.0.0.1', 5050))
+server.bind((IP, PORT))
 server.listen()
 
 def handle_player(player: Player):

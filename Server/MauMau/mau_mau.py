@@ -13,6 +13,9 @@ class MauMau:
         self.deck.shuffle()
         self.current_card = None
         self.stapel = []
+        self.number_of_seven = 0
+        self.last_player = None
+        self.color_to_serve = None
 
     def cards_equal(self, card_one: Card, card_two: Card) -> bool:
         if card_one.value == card_two.value and card_one.color == card_two.color:
@@ -27,7 +30,12 @@ class MauMau:
         return False
     
     def valid_card(self, card: Card) -> bool:
-        if self.current_card == None or card.value == "U":
+        if self.current_card is None:
+            return True
+        if self.number_of_seven > 0:
+            if not card.value == "7":
+                return False
+        if card.value == "U":
             return True
         elif self.current_card.value == card.value:
             return True
@@ -45,12 +53,24 @@ class MauMau:
             for i in range(hand_size):
                 player.hand.append(self.deck.get_card())
         self.current_card = self.deck.get_card()
+
+        if self.current_card.value == "7":
+            self.number_of_seven += 1
+        elif self.current_card.value == "A":
+            self.current_player = self.players[1]
         n: int = len(self.deck.deck)
         for i in range(n):
             self.stapel.append(self.deck.get_card())
         return True
     
     def pull_new_card(self, amount: int) -> list:
+
+        if self.number_of_seven > 0:
+            if amount < self.number_of_seven*2:
+                raise RuntimeError
+            else:
+                self.number_of_seven = 0
+
         result = []
         for i in range(amount):
             try:
@@ -69,7 +89,8 @@ class MauMau:
         info = {
             "winner": 0,
             "error": None,
-            "end": 0
+            "end": 0,
+            "prompt": None
         }
 
         if not self.remove_card_from_hand(card) or not self.valid_card(card):
@@ -80,9 +101,18 @@ class MauMau:
             self.stapel.append(self.current_card)
         self.current_card = card
 
+        #check if was 7:
+        if card.value == "7":
+            self.number_of_seven += 1
+        elif card.value == "U":
+            info["prompt"] = "choose_color"
+
         # determine next player
+        next_player_offset: int = 1
+        if self.current_card.value == "A":
+            next_player_offset = 2
         current_player_index = self.players.index(self.current_player)
-        next_player = self.players[(current_player_index+1) % len(self.players)]
+        next_player = self.players[(current_player_index + next_player_offset) % len(self.players)]
 
         # determine if a player has won
         if len(self.current_player.hand) == 0:

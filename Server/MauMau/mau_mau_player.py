@@ -18,7 +18,7 @@ def start_mau_mau_game(players : list) -> str:
 
     # geben:
     if not game.give():
-        return "to many players"
+        return "to_many_players"
 
     for player in game.players:
         player_hand: list = [(card.color, card.value) for card in player.hand]
@@ -29,7 +29,7 @@ def start_mau_mau_game(players : list) -> str:
     while True:
 
         if not game.current_player.send({"turn": game.current_player.name}):
-            print("error1")
+            return "network_error"
             
         data: dict = game.current_player.receive()
 
@@ -39,31 +39,43 @@ def start_mau_mau_game(players : list) -> str:
         end = 0
 
         if data["error"] == 1:
-            print("error2")  
-            break      
+            return "error"    
 
         elif data["instr"] == "pull_card":
             amount: int = data["amount"]
-            cards: list = game.pull_new_card(amount)
+            cards: list = []
+            try:
+                cards = game.pull_new_card(amount)
+            except:
+                cache_player.send({"error": "pull_more_cards", "amount": game.number_of_seven*2})
+                continue
             for i in range(len(cards)):
                 cards[i] = (cards[i].color, cards[i].value)
-            if cards == []:
-                print("not enough cards")
             cache_player.send({"new_card": cards})
-            new_game_state: dict = {"message": "got_card", "amount": amount}
+            new_game_state: dict = {"message": "got_card", "amount": amount, "winner": None, "current_hand": []}
 
         elif data["instr"] == "play_card":
             card: Card = convert_to_card(data["color"], data["value"])
             winner = None
             info: dict = game.set(card)
+            color: str = None
+
             if info["error"] == "invalid_card":
                 # client has to try again, game state was not updated
                 cache_player.send({"error": "invalid_card"})
                 continue
+
             if info["winner"] == 1:
                 winner = cache_player.name
                 if info["end"] == 1:
                     end = 1
+
+            if info["prompt"] == "choose_color":
+                game.current_player.send({"prompt": "choose_color"})
+                color_data = game.current_player.receive()
+                if "color" in color_data.keys():
+                    color = color_data["color"]
+
             new_game_state: dict = {
                 "message": "card_set", 
                 "color": card.color, 
@@ -71,18 +83,21 @@ def start_mau_mau_game(players : list) -> str:
                 "next_player": game.current_player.name,  
                 "winner": winner, 
                 "end": end, 
-                "current_card": (game.current_card.color, game.current_card.value) 
+                "current_card": (game.current_card.color, game.current_card.value), 
+                "current_hand": [],
+                "new_color": color
             }
 
 
         for player in game.players:
+            new_game_state["current_hand"] = [(c.color, c.value) for c in player.hand]
             if not player.send(new_game_state):
-                print("sending_error")
+                return "network_error"
         
         if end == 1:
             break
     
-    return "played"
+    return "end"
         
         
 

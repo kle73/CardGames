@@ -1,6 +1,7 @@
 from .mau_mau import MauMau
 from Utilities.card import Card
 from Utilities.player import Player
+from Exceptions.mau_mau_exceptions import NetworkError, PlayerOverflowError
 
 
 def convert_to_card(color: str, value: str) -> Card:
@@ -9,27 +10,41 @@ def convert_to_card(color: str, value: str) -> Card:
     except:
         return None
 
-def convert_to_json(card: Card) -> dict:
-    return {"color": card.color, "value": card.value}
+def convert_to_tuple(card: Card) -> tuple:
+    return (card.color, card.value)
 
 
-def start_mau_mau_game(players : list) -> str:
+def request_color(player: Player, game: MauMau) -> str:
+    player.send({"prompt": "choose_color"})
+    color_data = player.receive()
+    if "color" in color_data.keys():
+        color = color_data["color"]
+        game.color_to_serve = color
+
+
+def play(players : list):
     game = MauMau(players)
 
     # geben:
     if not game.give():
-        return "to_many_players"
+        raise PlayerOverflowError("to many players")
+
+    
 
     for player in game.players:
-        player_hand: list = [(card.color, card.value) for card in player.hand]
-        cache_current_card = (game.current_card.color, game.current_card.value)
-        player.send({"initial_cards": player_hand, "current_card": cache_current_card})
+        player_hand: list = [convert_to_tuple(card) for card in player.hand]
+        cache_current_card = convert_to_tuple(game.current_card)
+        if not player.send({"initial_cards": player_hand, "current_card": cache_current_card}):
+            raise NetworkError("player unreachable")
+
+    if game.color_to_serve != None:   
+        request_color(game.current_player, game)
 
     # spielen:
     while True:
 
         if not game.current_player.send({"turn": game.current_player.name}):
-            return "network_error"
+            raise NetworkError("Could not send state to player.")
             
         data: dict = game.current_player.receive()
 
@@ -39,26 +54,34 @@ def start_mau_mau_game(players : list) -> str:
         end = 0
 
         if data["error"] == 1:
-            return "error"    
+            raise RuntimeError   
 
         elif data["instr"] == "pull_card":
             amount: int = data["amount"]
             cards: list = []
             try:
                 cards = game.pull_new_card(amount)
-            except:
-                cache_player.send({"error": "pull_more_cards", "amount": game.number_of_seven*2})
+            except ValueError:
+                if not cache_player.send({"error": "pull_more_cards", "amount": game.number_of_seven*2}):
+                    raise NetworkError("player unreachable")
                 continue
-            for i in range(len(cards)):
-                cards[i] = (cards[i].color, cards[i].value)
-            cache_player.send({"new_card": cards})
-            new_game_state: dict = {"message": "got_card", "amount": amount, "winner": None, "current_hand": []}
+
+            for i, card in enumerate(cards):
+                cards[i] = convert_to_tuple(card)
+
+            new_game_state: dict = {
+                "message": "got_card", 
+                "amount": amount, 
+                "winner": None, 
+                "current_hand": [],
+                "current_card": convert_to_tuple(game.current_card),
+                "other_counts": {}
+                }
 
         elif data["instr"] == "play_card":
             card: Card = convert_to_card(data["color"], data["value"])
             winner = None
             info: dict = game.set(card)
-            color: str = None
 
             if info["error"] == "invalid_card":
                 # client has to try again, game state was not updated
@@ -67,14 +90,14 @@ def start_mau_mau_game(players : list) -> str:
 
             if info["winner"] == 1:
                 winner = cache_player.name
+                if not cache_player.send({"message": "winner", "winner": "you", "current_hand": [], "current_card": convert_to_tuple(game.current_card)}):
+                    raise NetworkError("player unreachable")
+
                 if info["end"] == 1:
                     end = 1
 
             if info["prompt"] == "choose_color":
-                game.current_player.send({"prompt": "choose_color"})
-                color_data = game.current_player.receive()
-                if "color" in color_data.keys():
-                    color = color_data["color"]
+                request_color(game.last_player, game)
 
             new_game_state: dict = {
                 "message": "card_set", 
@@ -83,21 +106,37 @@ def start_mau_mau_game(players : list) -> str:
                 "next_player": game.current_player.name,  
                 "winner": winner, 
                 "end": end, 
-                "current_card": (game.current_card.color, game.current_card.value), 
+                "current_card": convert_to_tuple(game.current_card), 
                 "current_hand": [],
-                "new_color": color
+                "new_color": game.color_to_serve,
+                "other_counts": {}
             }
 
+        for player in game.players:
+            new_game_state["other_counts"][player.name] = len(player.hand)
 
         for player in game.players:
-            new_game_state["current_hand"] = [(c.color, c.value) for c in player.hand]
+            new_game_state["current_hand"] = [ convert_to_tuple(c) for c in player.hand]
             if not player.send(new_game_state):
-                return "network_error"
+                raise NetworkError("player unreachable")
         
         if end == 1:
             break
     
-    return "end"
+
+
+def start_mau_mau_game(players: list):
+    try:
+        play(players)
+    except NetworkError:
+        print("one player seems to be unreachable")
+    except PlayerOverflowError:
+        print("there are to many players for this game")
+    except RuntimeError:
+        print("error, game ended")
+
+
+
         
         
 

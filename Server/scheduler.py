@@ -7,7 +7,7 @@ import socket
 import threading
 import json
 
-IP, PORT = "192.168.0.61", 0
+IP, PORT = "localhost", 5050
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((IP, PORT))
@@ -16,9 +16,10 @@ server.listen()
 def handle_player(player: Player):
     data = player.conn.recv(1024).decode()
     game = json.loads(data)
+    player.name = game["name"]
     if game["game"] == "mau_mau":
-        global mau_mau_palyers
-        mau_mau_palyers.append(player)
+        global mau_mau_players
+        mau_mau_players.append(player)
     elif game["game"] == "skat":
         global skat_players
         skat_players.append(player)
@@ -37,7 +38,7 @@ def receive_new_players(server: socket.socket):
 
 
 
-mau_mau_palyers = []
+mau_mau_players = []
 skat_players = []
 schnauzer_players = []
 
@@ -52,8 +53,8 @@ while True:
             new_player = player_buffer.pop(0)
             player_handler = threading.Thread(target=handle_player, args=(new_player, ))
             player_handler.start()
-    if len(mau_mau_palyers) > 2:
-        players = [mau_mau_palyers.pop(0), mau_mau_palyers.pop(0), mau_mau_palyers.pop(0)]
+    if len(mau_mau_players) > 2:
+        players = [mau_mau_players.pop(0), mau_mau_players.pop(0), mau_mau_players.pop(0)]
         mau_mau_thread = threading.Thread(target=start_mau_mau_game, args=(players, ))
         mau_mau_thread.start()
     if len(skat_players) > 2:

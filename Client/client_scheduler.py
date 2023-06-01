@@ -1,11 +1,12 @@
 import threading
 import socket
 import json
+import os
 
 from mau_mau_client import start_mau_mau
 
 
-SERVER, PORT = '192.168.0.61', 0
+SERVER, PORT = 'localhost', 5050
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -19,9 +20,10 @@ def least_edit_distance(word: str):
 def main():
     while True:
         game_to_play = input("what game do you want to play [maumau|skat|schnauzer]: ")
+        name = input("whats your name: ")
         while True:
             if game_to_play == "maumau":
-                start_mau_mau(server)
+                start_mau_mau(server, name)
                 break
             elif game_to_play == "skat":
                 break
@@ -33,6 +35,6 @@ def main():
 
             
 
-
+os.system("clear")
 main()
 

@@ -37,6 +37,12 @@ class MauMau:
                 return False
         if card.value == "U":
             return True
+        if self.current_card.value == "U":
+            if card.color != self.color_to_serve:
+                return False
+            else:
+                self.color_to_serve = None
+                return True
         elif self.current_card.value == card.value:
             return True
         elif self.current_card.color == card.color:
@@ -49,10 +55,14 @@ class MauMau:
         hand_size = 26 // len(self.players) 
         if hand_size == 0:
             return False
+        elif hand_size > 6:
+            hand_size = 2
         for player in self.players:
             for i in range(hand_size):
                 player.hand.append(self.deck.get_card())
         self.current_card = self.deck.get_card()
+        if self.current_card.value == "U":
+            self.color_to_serve = self.current_card.value
 
         if self.current_card.value == "7":
             self.number_of_seven += 1
@@ -67,7 +77,7 @@ class MauMau:
 
         if self.number_of_seven > 0:
             if amount < self.number_of_seven*2:
-                raise RuntimeError
+                raise ValueError
             else:
                 self.number_of_seven = 0
 
@@ -99,6 +109,7 @@ class MauMau:
         
         if self.current_card:
             self.stapel.append(self.current_card)
+
         self.current_card = card
 
         #check if was 7:
@@ -114,15 +125,17 @@ class MauMau:
         current_player_index = self.players.index(self.current_player)
         next_player = self.players[(current_player_index + next_player_offset) % len(self.players)]
 
+
         # determine if a player has won
         if len(self.current_player.hand) == 0:
             info["winner"] = 1
             self.players.remove(self.current_player)
             if len(self.players) == 1:
-                info["end"] == 1
+                info["end"] = 1
 
         
         # update next player
+        self.last_player = self.current_player
         self.current_player = next_player
         return info
  
